@@ -34,6 +34,43 @@ interface PromoRow {
   active: boolean;
 }
 
+interface UsuarioRow {
+  id: string;
+  name: string | null;
+  email: string | null;
+  isGuest: boolean;
+  role: string;
+  status: string;
+  createdAt: string;
+  consultas: number;
+  compras: number;
+  diario: number;
+}
+
+interface ConsultaRow {
+  id: string;
+  date: string;
+  userName: string | null;
+  userEmail: string | null;
+  service: string;
+  status: string;
+  paid: boolean;
+  accessMode: string | null;
+  title: string | null;
+  firstMessage: string | null;
+}
+
+interface MotorRow {
+  id: string;
+  date: string;
+  service: string | null;
+  model: string;
+  tokens: number;
+  costUsd: number;
+  latencyMs: number;
+  status: string;
+}
+
 interface PurchaseRow {
   id: string;
   date: string;
@@ -56,17 +93,22 @@ interface PromptRow {
   active: boolean;
 }
 
+type Tab = "pagos" | "usuarios" | "consultas" | "motor" | "servicios" | "promos" | "creditos" | "prompts";
+
 export function AdminClient({
-  stats, services, promos, prompts, purchases,
+  stats, services, promos, prompts, purchases, usuarios, consultasDetalle, motor,
 }: {
   stats: Stats;
   services: ServiceRow[];
   promos: PromoRow[];
   prompts: PromptRow[];
   purchases: PurchaseRow[];
+  usuarios: UsuarioRow[];
+  consultasDetalle: ConsultaRow[];
+  motor: MotorRow[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"pagos" | "servicios" | "promos" | "creditos" | "prompts">("pagos");
+  const [tab, setTab] = useState<Tab>("pagos");
   const [editing, setEditing] = useState<string | null>(null);
   const [price, setPrice] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -96,12 +138,12 @@ export function AdminClient({
         <h1 className="font-display text-3xl font-semibold text-gradient-gold">Panel Admin</h1>
       </header>
 
-      {/* KPIs */}
+      {/* KPIs — cada tarjeta abre su detalle */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Usuarias/os" value={stats.users.toLocaleString("es-AR")} />
-        <Kpi label="Consultas" value={stats.consultas.toLocaleString("es-AR")} />
-        <Kpi label="Ingresos" value={`$${stats.revenue.toLocaleString("es-AR")}`} />
-        <Kpi label="Llamadas del motor" value={stats.aiCalls.toLocaleString("es-AR")} />
+        <Kpi label="Usuarias/os" value={stats.users.toLocaleString("es-AR")} onClick={() => setTab("usuarios")} active={tab === "usuarios"} />
+        <Kpi label="Consultas" value={stats.consultas.toLocaleString("es-AR")} onClick={() => setTab("consultas")} active={tab === "consultas"} />
+        <Kpi label="Ingresos" value={`$${stats.revenue.toLocaleString("es-AR")}`} onClick={() => setTab("pagos")} active={tab === "pagos"} />
+        <Kpi label="Llamadas del motor" value={stats.aiCalls.toLocaleString("es-AR")} onClick={() => setTab("motor")} active={tab === "motor"} />
       </div>
       <div className="card-mystic p-4 text-xs text-mist">
         Tokens: {(stats.tokensIn + stats.tokensOut).toLocaleString("es-AR")} totales
@@ -113,6 +155,9 @@ export function AdminClient({
         {(
           [
             ["pagos", "Pagos"],
+            ["usuarios", "Usuarios"],
+            ["consultas", "Consultas"],
+            ["motor", "Motor IA"],
             ["servicios", "Servicios"],
             ["promos", "Promos"],
             ["creditos", "Créditos"],
@@ -184,6 +229,9 @@ export function AdminClient({
       )}
 
       {tab === "pagos" && <PagosTab purchases={purchases} />}
+      {tab === "usuarios" && <UsuariosTab usuarios={usuarios} />}
+      {tab === "consultas" && <ConsultasTab consultas={consultasDetalle} />}
+      {tab === "motor" && <MotorTab motor={motor} />}
       {tab === "promos" && <PromosTab promos={promos} services={services} onDone={() => router.refresh()} />}
       {tab === "creditos" && <CreditosTab onMsg={setMsg} />}
       {tab === "prompts" && <PromptsTab prompts={prompts} onDone={() => router.refresh()} />}
@@ -335,6 +383,192 @@ function PagosTab({ purchases }: { purchases: PurchaseRow[] }) {
         {purchases.length >= 1000 && (
           <p className="text-center text-[10px] text-mist/50">Se muestran los últimos 1.000 movimientos.</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Usuarios ---------- */
+function UsuariosTab({ usuarios }: { usuarios: UsuarioRow[] }) {
+  const [q, setQ] = useState("");
+  const [tipo, setTipo] = useState("");
+
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return usuarios.filter((u) => {
+      if (tipo === "registrados" && u.isGuest) return false;
+      if (tipo === "invitados" && !u.isGuest) return false;
+      if (tipo === "compradores" && u.compras === 0) return false;
+      if (needle && !`${u.name ?? ""} ${u.email ?? ""}`.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [usuarios, q, tipo]);
+
+  const registrados = usuarios.filter((u) => !u.isGuest).length;
+  const compradores = usuarios.filter((u) => u.compras > 0).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Kpi label="Registradas/os" value={registrados.toLocaleString("es-AR")} />
+        <Kpi label="Invitadas/os" value={(usuarios.length - registrados).toLocaleString("es-AR")} />
+        <Kpi label="Con compras" value={compradores.toLocaleString("es-AR")} />
+      </div>
+      <div className="card-mystic grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nombre o email…" className="input col-span-2 text-sm sm:col-span-1" />
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="input text-sm">
+          <option value="">Todos</option>
+          <option value="registrados">Solo registrados</option>
+          <option value="invitados">Solo invitados</option>
+          <option value="compradores">Con compras</option>
+        </select>
+        <p className="col-span-2 self-center text-right text-[11px] text-mist/60 sm:col-span-1">{rows.length} usuarios</p>
+      </div>
+      <div className="space-y-2">
+        {rows.map((u) => (
+          <div key={u.id} className="card-mystic flex items-start gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-ivory">
+                {u.name ?? "Sin nombre"}
+                {u.role !== "USER" && <span className="ml-2 rounded-full bg-violet/20 px-2 py-0.5 text-[10px] text-violet">{u.role.toLowerCase()}</span>}
+                {u.isGuest && <span className="ml-2 rounded-full bg-plum/40 px-2 py-0.5 text-[10px] text-mist">invitada/o</span>}
+              </p>
+              <p className="truncate text-[11px] text-mist">{u.email ?? "sin email"} · se unió {fmtDate(u.createdAt).slice(0, 8)}</p>
+              <p className="text-[10px] text-mist/60">
+                {u.consultas} consulta{u.consultas === 1 ? "" : "s"} · {u.compras} compra{u.compras === 1 ? "" : "s"} · {u.diario} entrada{u.diario === 1 ? "" : "s"} de diario
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${u.status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose/15 text-rose"}`}>
+              {u.status === "ACTIVE" ? "activa/o" : u.status.toLowerCase()}
+            </span>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="py-6 text-center text-xs text-mist/60">No hay usuarios con estos filtros.</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Consultas ---------- */
+const ACCESS_LABEL: Record<string, string> = {
+  free: "gratis", purchase: "compra", credits: "créditos", membership: "membresía", admin: "admin",
+};
+
+function ConsultasTab({ consultas }: { consultas: ConsultaRow[] }) {
+  const [q, setQ] = useState("");
+  const [solo, setSolo] = useState("");
+
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return consultas.filter((c) => {
+      if (solo === "pagas" && !c.paid) return false;
+      if (solo === "gratis" && c.paid) return false;
+      if (needle) {
+        const hay = `${c.userName ?? ""} ${c.userEmail ?? ""} ${c.service} ${c.firstMessage ?? ""}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [consultas, q, solo]);
+
+  const pagas = consultas.filter((c) => c.paid).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Kpi label="Consultas (últimas 300)" value={consultas.length.toLocaleString("es-AR")} />
+        <Kpi label="Pagas / del día" value={pagas.toLocaleString("es-AR")} />
+      </div>
+      <div className="card-mystic grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar persona, servicio o pregunta…" className="input col-span-2 text-sm sm:col-span-2" />
+        <select value={solo} onChange={(e) => setSolo(e.target.value)} className="input text-sm">
+          <option value="">Todas</option>
+          <option value="pagas">Solo pagas</option>
+          <option value="gratis">Solo gratis/día</option>
+        </select>
+      </div>
+      <div className="space-y-2">
+        {rows.map((c) => (
+          <div key={c.id} className="card-mystic p-3 text-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-ivory">{c.service}</p>
+                <p className="truncate text-[11px] text-mist">{c.userName ?? "Sin nombre"} · {c.userEmail ?? "invitada/o"}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] ${c.paid ? "bg-emerald-500/15 text-emerald-300" : "bg-plum/40 text-mist"}`}>
+                  {c.accessMode ? (ACCESS_LABEL[c.accessMode] ?? c.accessMode) : c.status.toLowerCase()}
+                </span>
+                <p className="mt-1 text-[10px] text-mist/60">{fmtDate(c.date)}</p>
+              </div>
+            </div>
+            {c.firstMessage && (
+              <p className="mt-2 line-clamp-3 rounded-lg bg-plum/20 px-3 py-2 text-xs italic text-ivory/85">
+                “{c.firstMessage}”
+              </p>
+            )}
+          </div>
+        ))}
+        {rows.length === 0 && <p className="py-6 text-center text-xs text-mist/60">No hay consultas con estos filtros.</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Motor IA ---------- */
+function MotorTab({ motor }: { motor: MotorRow[] }) {
+  const totalTokens = motor.reduce((s, m) => s + m.tokens, 0);
+  const totalCost = motor.reduce((s, m) => s + m.costUsd, 0);
+  const errores = motor.filter((m) => m.status !== "ok").length;
+
+  const byService = useMemo(() => {
+    const m = new Map<string, { calls: number; tokens: number }>();
+    for (const l of motor) {
+      const k = l.service ?? "general";
+      const cur = m.get(k) ?? { calls: 0, tokens: 0 };
+      m.set(k, { calls: cur.calls + 1, tokens: cur.tokens + l.tokens });
+    }
+    return [...m.entries()].sort((a, b) => b[1].tokens - a[1].tokens);
+  }, [motor]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Kpi label="Tokens (últimas 200)" value={totalTokens.toLocaleString("es-AR")} />
+        <Kpi label="Costo est. USD" value={`$${totalCost.toFixed(2)}`} />
+        <Kpi label="Errores" value={errores.toLocaleString("es-AR")} />
+      </div>
+      {byService.length > 0 && (
+        <div className="card-mystic p-3">
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-mist/70">Uso por servicio</p>
+          <div className="space-y-1">
+            {byService.map(([s, v]) => (
+              <div key={s} className="flex justify-between text-xs">
+                <span className="text-ivory">{s} <span className="text-mist/60">×{v.calls}</span></span>
+                <span className="text-gold">{v.tokens.toLocaleString("es-AR")} tok</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="space-y-2">
+        {motor.map((l) => (
+          <div key={l.id} className="card-mystic flex items-center gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-ivory">{l.service ?? "general"}</p>
+              <p className="truncate text-[10px] text-mist/60">
+                {fmtDate(l.date)} · {l.model} · {l.latencyMs} ms
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xs text-gold">{l.tokens.toLocaleString("es-AR")} tok · ${l.costUsd.toFixed(4)}</p>
+              <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] ${l.status === "ok" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose/15 text-rose"}`}>
+                {l.status}
+              </span>
+            </div>
+          </div>
+        ))}
+        {motor.length === 0 && <p className="py-6 text-center text-xs text-mist/60">Todavía no hay llamadas registradas.</p>}
       </div>
     </div>
   );
@@ -519,11 +753,15 @@ function PromptsTab({ prompts, onDone }: { prompts: PromptRow[]; onDone: () => v
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({ label, value, onClick, active }: { label: string; value: string; onClick?: () => void; active?: boolean }) {
   return (
-    <div className="card-mystic p-4 text-center">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`card-mystic p-4 text-center transition ${onClick ? "cursor-pointer hover:border-gold/40" : ""} ${active ? "border-gold/50 bg-gold/5" : ""}`}
+    >
       <p className="font-display text-2xl font-semibold text-gold">{value}</p>
       <p className="mt-1 text-[11px] uppercase tracking-wider text-mist/70">{label}</p>
-    </div>
+    </button>
   );
 }

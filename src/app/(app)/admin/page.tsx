@@ -7,7 +7,7 @@ export default async function AdminPage() {
   const user = await getCurrentUser();
   if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) redirect("/inicio");
 
-  const [users, consultas, revenue, services, usage, promos, prompts, purchases] = await Promise.all([
+  const [users, consultas, revenue, services, usage, promos, prompts, purchases, userRows, consultaRows, aiLogs] = await Promise.all([
     prisma.user.count(),
     prisma.consultation.count(),
     prisma.purchase.aggregate({ _sum: { amountArs: true }, where: { status: "APPROVED" } }),
@@ -29,6 +29,32 @@ export default async function AdminPage() {
         service: { select: { name: true } },
       },
     }),
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      select: {
+        id: true, name: true, email: true, isGuest: true, role: true, status: true, createdAt: true,
+        _count: { select: { consultations: true, purchases: true, journals: true } },
+      },
+    }),
+    prisma.consultation.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: {
+        id: true, status: true, paid: true, title: true, meta: true, createdAt: true,
+        user: { select: { name: true, email: true } },
+        service: { select: { name: true } },
+        conversation: { select: { messages: { where: { role: "USER" }, orderBy: { createdAt: "asc" }, take: 1, select: { content: true, createdAt: true } } } },
+      },
+    }),
+    prisma.aiUsageLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true, serviceSlug: true, provider: true, model: true,
+        tokensIn: true, tokensOut: true, costMicroUsd: true, latencyMs: true, status: true, createdAt: true,
+      },
+    }),
   ]);
 
   return (
@@ -44,6 +70,44 @@ export default async function AdminPage() {
       services={services}
       promos={promos}
       prompts={prompts}
+      usuarios={userRows.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        isGuest: u.isGuest,
+        role: u.role,
+        status: u.status,
+        createdAt: u.createdAt.toISOString(),
+        consultas: u._count.consultations,
+        compras: u._count.purchases,
+        diario: u._count.journals,
+      }))}
+      consultasDetalle={consultaRows.map((c) => {
+        const meta = (c.meta ?? {}) as { accessMode?: string; oracle?: string };
+        const firstMsg = c.conversation?.messages[0];
+        return {
+          id: c.id,
+          date: c.createdAt.toISOString(),
+          userName: c.user.name,
+          userEmail: c.user.email,
+          service: c.service?.name ?? meta.oracle ?? "Consulta",
+          status: c.status,
+          paid: c.paid,
+          accessMode: meta.accessMode ?? null,
+          title: c.title ?? null,
+          firstMessage: firstMsg?.content ?? null,
+        };
+      })}
+      motor={aiLogs.map((l) => ({
+        id: l.id,
+        date: l.createdAt.toISOString(),
+        service: l.serviceSlug,
+        model: l.model,
+        tokens: l.tokensIn + l.tokensOut,
+        costUsd: l.costMicroUsd / 1_000_000,
+        latencyMs: l.latencyMs,
+        status: l.status,
+      }))}
       purchases={purchases.map((p) => {
         const meta = (p.metadata ?? {}) as { plan?: string; credits?: number; coupon?: string };
         return {
