@@ -1,0 +1,21 @@
+services:
+  alma-postgres:
+    image: postgres:16-alpine
+    container_name: alma-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: alma
+      POSTGRES_PASSWORD: alma_dev
+      POSTGRES_DB: almalimpia
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - alma_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alma -d almalimpia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  alma_pgdata:

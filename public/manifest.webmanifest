@@ -1,0 +1,15 @@
+{
+  "name": "ALMA LIMPIA",
+  "short_name": "Alma Limpia",
+  "description": "Un espacio para conectar con tu esencia",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0618",
+  "theme_color": "#0b0618",
+  "lang": "es",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

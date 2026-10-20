@@ -1,0 +1,548 @@
+// ALMA LIMPIA — Prisma schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identidad ----------
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String?   @unique
+  passwordHash  String?
+  name          String?
+  role          String    @default("USER") // USER | ADMIN | SUPERADMIN
+  isGuest       Boolean   @default(false)
+  status        String    @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
+  birthDate     DateTime? @db.Date
+  birthTime     String?
+  birthCity     String?
+  birthCountry  String?
+  birthLat      Float?
+  birthLng      Float?
+  birthTz       String?
+  consentMemory Boolean   @default(false) @map("consent_memory")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile           Profile?
+  preferences       UserPreference?
+  consentRecords    ConsentRecord[]
+  conversations     Conversation[]
+  consultations     Consultation[]
+  tarotReadings     TarotReading[]
+  astrologyCharts   AstrologyChart[]
+  numerologyReports NumerologyReport[]
+  journals          Journal[]
+  purchases         Purchase[]
+  creditWallet      CreditWallet?
+  creditTx          CreditTransaction[]
+  subscriptions     Subscription[]
+  memberships       Membership[]
+  ritualsSaved      RitualSaved[]
+  favorites         Favorite[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  sunSign     String?
+  moonSign    String?
+  risingSign  String?
+  lifePath    Int?
+  dailyCardId String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model UserPreference {
+  id                    String  @id @default(uuid()) @db.Uuid
+  userId                String  @unique @db.Uuid
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationsEnabled  Boolean @default(false)
+  notifyDailyCard       Boolean @default(false)
+  notifyHoroscope       Boolean @default(false)
+  notifyRituals         Boolean @default(false)
+  reduceMotion          Boolean @default(false)
+  soundEnabled          Boolean @default(false)
+  theme                 String  @default("night")
+  language              String  @default("es-AR")
+  deckPreference        String  @default("rider")
+  extra                 Json    @default("{}")
+
+  @@map("user_preferences")
+}
+
+model ConsentRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String // MEMORY | NOTIFICATIONS | TERMS | PRIVACY
+  granted    Boolean
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, type])
+  @@map("consent_records")
+}
+
+// ---------- Catálogo ----------
+model ServiceCategory {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique // oraculo | universo | alma | energia | vinculos | rituales
+  name        String
+  tagline     String?
+  description String?
+  icon        String?
+  imageUrl    String?
+  order       Int       @default(0)
+  active      Boolean   @default(true)
+  services    Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id               String          @id @default(uuid()) @db.Uuid
+  categoryId       String          @db.Uuid
+  category         ServiceCategory @relation(fields: [categoryId], references: [id])
+  slug             String          @unique
+  name             String
+  shortDesc        String?
+  description      String?
+  imageUrl         String?
+  kind             String // CHAT | TAROT | NATAL | NUMEROLOGY | RITUAL | TEST | READING
+  engineConfig     Json    @default("{}") // preguntas, formato, duración, límites
+  promptVersionId  String? @db.Uuid
+  priceArs         Int     @default(0)
+  creditsCost      Int     @default(0)
+  freeDaily        Boolean @default(false)
+  freeLimitPerDay  Int     @default(0)
+  active           Boolean @default(true)
+  order            Int     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  consultations    Consultation[]
+  tarotReadings    TarotReading[]
+  favorites        Favorite[]
+  purchases        Purchase[]
+
+  @@index([categoryId, active])
+  @@map("services")
+}
+
+model PromptTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  serviceId String?  @db.Uuid
+  key       String
+  version   Int      @default(1)
+  system    String
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([key, version])
+  @@map("prompt_templates")
+}
+
+// ---------- Conversaciones ----------
+model Consultation {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceId  String?  @db.Uuid
+  service    Service? @relation(fields: [serviceId], references: [id])
+  status     String   @default("OPEN") // OPEN | PAID | DONE | CANCELLED
+  paid       Boolean  @default(false)
+  purchaseId String?  @db.Uuid
+  title      String?
+  meta       Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  conversation Conversation?
+  tarotReading TarotReading?
+
+  @@index([userId, createdAt])
+  @@map("consultations")
+}
+
+model Conversation {
+  id             String   @id @default(uuid()) @db.Uuid
+  consultationId String   @unique @db.Uuid
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memoryEnabled  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages Message[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // USER | GUIDE | SYSTEM
+  content        String
+  kind           String   @default("text") // text | cards | chart | action
+  payload        Json     @default("{}")
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ---------- Tarot ----------
+model TarotDeck {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique // rider | marsella | angels | etc
+  name        String
+  backImageUrl String?
+  cardCount   Int      @default(78)
+  active      Boolean  @default(true)
+  cards       TarotCard[]
+
+  @@map("tarot_decks")
+}
+
+model TarotCard {
+  id           String    @id @default(uuid()) @db.Uuid
+  deckId       String    @db.Uuid
+  deck         TarotDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  code         String // major-00, wands-ace...
+  name         String
+  arcana       String // MAJOR | WANDS | CUPS | SWORDS | PENTACLES | MINOR
+  number       Int?
+  uprightKeys  String   @default("")
+  reversedKeys String   @default("")
+  uprightText  String?
+  reversedText String?
+  imageUrl     String?
+  order        Int      @default(0)
+
+  @@unique([deckId, code])
+  @@index([deckId])
+  @@map("tarot_cards")
+}
+
+model TarotReading {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consultationId String?      @unique @db.Uuid
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  serviceId      String?      @db.Uuid
+  service        Service?     @relation(fields: [serviceId], references: [id])
+  spreadType     String // one | three | five | seven | celtic
+  question       String?
+  seed           String // RNG verificable
+  cards          Json // [{cardId, code, position, reversed}]
+  interpretation String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("tarot_readings")
+}
+
+// ---------- Astrología / Numerología ----------
+model AstrologyChart {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String   @default("natal") // natal | synastry | solar_return
+  subject    String   @default("self")
+  name       String?
+  birthDate  DateTime @db.Date
+  birthTime  String?
+  hasTime    Boolean  @default(false)
+  city       String?
+  country    String?
+  lat        Float?
+  lng        Float?
+  tz         String?
+  data       Json // posiciones calculadas (verificable, no inventado)
+  aspects    Json     @default("[]")
+  report     String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("astrology_charts")
+}
+
+model NumerologyReport {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String   @default("self")
+  name      String?
+  birthDate DateTime @db.Date
+  tradition String   @default("pythagorean")
+  results   Json // lifePath, destiny, soul, personality, personalYear...
+  report    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("numerology_reports")
+}
+
+// ---------- Rituales / Diario ----------
+model Ritual {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  category    String? // luna_nueva | luna_llena | gratitud | cierre | manifestacion
+  description String?
+  steps       Json     @default("[]")
+  safeVariant Json     @default("{}") // alternativas sin fuego
+  durationMin Int      @default(15)
+  active      Boolean  @default(true)
+
+  savedBy RitualSaved[]
+  @@map("rituals")
+}
+
+model RitualSaved {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ritualId  String   @db.Uuid
+  ritual    Ritual   @relation(fields: [ritualId], references: [id], onDelete: Cascade)
+  doneAt    DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, ritualId])
+  @@map("rituals_saved")
+}
+
+model Journal {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String   @default("diario") // diario | suenos | manifestacion | emocional
+  title     String?
+  content   String
+  mood      String?
+  tags      String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, kind, createdAt])
+  @@map("journals")
+}
+
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceId String   @db.Uuid
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, serviceId])
+  @@map("favorites")
+}
+
+// ---------- Pagos ----------
+model Purchase {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  user          User     @relation(fields: [userId], references: [id])
+  serviceId     String?  @db.Uuid
+  service       Service? @relation(fields: [serviceId], references: [id])
+  kind          String // SERVICE | CREDITS | MEMBERSHIP | GIFT
+  amountArs     Int
+  status        String   @default("PENDING") // PENDING | APPROVED | REJECTED | REFUNDED
+  mpPreferenceId String?
+  mpPaymentId   String?
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([userId, status])
+  @@map("purchases")
+}
+
+model Payment {
+  id              String   @id @default(uuid()) @db.Uuid
+  purchaseId      String?  @db.Uuid
+  purchase        Purchase? @relation(fields: [purchaseId], references: [id])
+  provider        String   @default("mercadopago")
+  providerEventId String   @unique // idempotencia webhook
+  providerRef     String?
+  amountArs       Int
+  status          String
+  raw             Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@map("payments")
+}
+
+model CreditWallet {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @unique @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance  Int    @default(0)
+  currency String @default("CREDITS")
+
+  @@map("credit_wallets")
+}
+
+model CreditTransaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  walletId  String   @db.Uuid
+  amount    Int // + carga / - consumo
+  reason    String // PURCHASE | SERVICE_SPEND | PROMO | ADMIN | REFUND
+  refId     String?  @db.Uuid
+  balance   Int // saldo resultante
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("credit_transactions")
+}
+
+model Subscription {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id])
+  planCode   String   @default("LUNA") // LUNA | ESTRELLA | COSMOS
+  status     String   @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED | EXPIRED
+  mpPreapprovalId String?
+  startedAt  DateTime @default(now())
+  renewsAt   DateTime?
+  cancelledAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model Membership {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  planCode  String
+  active    Boolean  @default(true)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, active])
+  @@map("memberships")
+}
+
+model Promotion {
+  id         String   @id @default(uuid()) @db.Uuid
+  code       String   @unique
+  kind       String // PERCENT | FIXED | CREDITS | FREE_SERVICE
+  value      Int
+  serviceId  String?  @db.Uuid
+  validFrom  DateTime?
+  validUntil DateTime?
+  maxUses    Int?
+  usedCount  Int      @default(0)
+  active     Boolean  @default(true)
+
+  @@map("promotions")
+}
+
+// ---------- Operación ----------
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  user       User?    @relation(fields: [userId], references: [id])
+  actor      String // user | admin | system | webhook
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json     @default("{}")
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model AiUsageLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @db.Uuid
+  serviceSlug  String?
+  provider     String
+  model        String
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  costMicroUsd Int      @default(0)
+  latencyMs    Int      @default(0)
+  status       String   @default("ok")
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+}
+
+model AdminSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_settings")
+}
+
+model RateLimitEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String // ip:o user:xxx
+  action    String
+  createdAt DateTime @default(now())
+
+  @@index([key, action, createdAt])
+  @@map("rate_limit_events")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
