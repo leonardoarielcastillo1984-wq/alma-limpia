@@ -3,7 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import { getCurrentUser } from "@/server/auth";
 import { drawPendulum, drawRunes, drawIChing, drawAkashic } from "@/server/oracles";
-import { buildSystemPrompt, getMemoryContext, getOracleHistory, runLlm } from "@/server/engine/consultation";
+import {
+  buildSystemPrompt, chargeCredits, checkAccess, getMemoryContext, getOracleHistory, QuotaError, runLlm,
+} from "@/server/engine/consultation";
+
+const SERVICE_SLUG = {
+  pendulo: "pendulo-virtual",
+  runas: "runas-nordicas",
+  iching: "i-ching",
+  akashico: "registros-akashicos",
+} as const;
 
 const schema = z.object({
   oracle: z.enum(["pendulo", "runas", "iching", "akashico"]),
@@ -23,6 +32,7 @@ export async function POST(req: Request) {
 
   try {
     const body = schema.parse(await req.json());
+    const access = await checkAccess(user, SERVICE_SLUG[body.oracle]);
     const seed = crypto.randomUUID();
     const question = body.question?.trim() || undefined;
     const context = body.context?.trim() || undefined;
@@ -89,8 +99,21 @@ export async function POST(req: Request) {
       },
     });
 
+    await prisma.consultation.create({
+      data: {
+        userId: user.id,
+        serviceId: access.service.id,
+        status: "DONE",
+        paid: access.mode !== "credits",
+        purchaseId: "purchaseId" in access ? access.purchaseId : null,
+        meta: { accessMode: access.mode, oracle: body.oracle, seed },
+      },
+    });
+    if (access.mode === "credits") await chargeCredits(user.id, access.service.id);
+
     return NextResponse.json({ ok: true, result, interpretation });
   } catch (e) {
+    if (e instanceof QuotaError) return NextResponse.json({ error: "PAYMENT_REQUIRED" }, { status: 402 });
     if (e instanceof z.ZodError) return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
     console.error("oraculos POST", e);
     return NextResponse.json({ error: "INTERNAL" }, { status: 500 });

@@ -131,8 +131,12 @@ export function OracleClient({ oracle, name, desc }: { oracle: Oracle; name: str
       setResult(res.result);
       setInterpretation(res.interpretation);
       setStep("result");
-    } catch {
-      setError("No pudimos hacer el sorteo. Probá de nuevo.");
+    } catch (e) {
+      setError(
+        (e as { status?: number }).status === 402
+          ? "Ya usaste esta consulta. Para hacer otra, volvé a la página del servicio."
+          : "No pudimos hacer el sorteo. Probá de nuevo."
+      );
       setStep("form");
     }
   }

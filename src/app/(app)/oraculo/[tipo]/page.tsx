@@ -48,6 +48,11 @@ export default async function OraclePage({ params }: { params: Promise<{ tipo: s
           </Link>
           <h1 className="mx-10 font-display text-3xl text-gold-soft">{cfg.name}</h1>
         </header>
+        {service.priceArs === 0 ? (
+          <div className="card-mystic p-5">
+            <p className="text-sm text-ivory/85">Ya usaste tu consulta gratis de hoy. Volvé mañana 🌙</p>
+          </div>
+        ) : (
         <div className="card-mystic p-5">
           <p className="mb-4 text-sm text-ivory/85">
             Esta experiencia cuesta <b className="text-gold">$ {service.priceArs.toLocaleString("es-AR")}</b>
@@ -55,6 +60,7 @@ export default async function OraclePage({ params }: { params: Promise<{ tipo: s
           </p>
           <PayServiceButton serviceSlug={cfg.serviceSlug} priceArs={service.priceArs} />
         </div>
+        )}
       </div>
     );
   }
