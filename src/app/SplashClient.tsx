@@ -120,24 +120,18 @@ export function SplashClient() {
                 className="mt-8 flex w-full flex-col gap-3"
               >
                 <button
-                  onClick={() => enter("/inicio")}
-                  className="btn-gold flex items-center justify-center gap-3 px-8 py-4 text-base"
+                  onClick={asGuest}
+                  disabled={loading}
+                  className="btn-gold flex items-center justify-center gap-3 px-8 py-4 text-base disabled:opacity-60"
                 >
-                  Comenzar mi camino <ArrowRight size={18} />
+                  {loading ? "Entrando…" : "Comenzar mi camino"} <ArrowRight size={18} />
                 </button>
                 <div className="flex items-center justify-center gap-4 text-sm">
                   <button onClick={() => setMode("auth")} className="text-gold-soft hover:text-gold">
                     Ya tengo cuenta
                   </button>
-                  <span className="text-mist/40">·</span>
-                  <button
-                    onClick={asGuest}
-                    disabled={loading}
-                    className="text-mist hover:text-ivory disabled:opacity-50"
-                  >
-                    {loading ? "Entrando…" : "Entrar como invitada/o"}
-                  </button>
                 </div>
+                {error && <p className="text-sm text-rose">{error}</p>}
 
                 <div className="mt-6 grid grid-cols-4 gap-2">
                   {PILLARS.map(({ label, icon: Icon }) => (

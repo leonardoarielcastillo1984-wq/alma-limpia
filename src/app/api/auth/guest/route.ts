@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/db";
-import { createSession } from "@/server/auth";
+import { createSession, getCurrentUser } from "@/server/auth";
 import { tooMany, clientIp } from "@/server/ratelimit";
 
 // Ingreso como invitado: crea un User isGuest sin email.
 // Desde perfil puede "reclamar" la cuenta con email+password después.
 export async function POST(req: Request) {
   try {
+    // Idempotente: si ya hay sesión, devolver el usuario actual
+    // (evita pisar una sesión de cuenta con un invitado nuevo).
+    const existing = await getCurrentUser();
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        user: { id: existing.id, guest: existing.isGuest },
+      });
+    }
     if (await tooMany(`ip:${clientIp(req)}`, "guest", 10, 3600)) {
       return NextResponse.json({ error: "TOO_MANY" }, { status: 429 });
     }
