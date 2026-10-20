@@ -454,9 +454,20 @@ const ACCESS_LABEL: Record<string, string> = {
   free: "gratis", purchase: "compra", credits: "créditos", membership: "membresía", admin: "admin",
 };
 
+interface ThreadMsg {
+  id: string;
+  role: string;
+  content: string;
+  kind: string;
+  createdAt: string;
+}
+
 function ConsultasTab({ consultas }: { consultas: ConsultaRow[] }) {
   const [q, setQ] = useState("");
   const [solo, setSolo] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<Record<string, ThreadMsg[]>>({});
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -472,6 +483,21 @@ function ConsultasTab({ consultas }: { consultas: ConsultaRow[] }) {
   }, [consultas, q, solo]);
 
   const pagas = consultas.filter((c) => c.paid).length;
+
+  async function toggleThread(id: string) {
+    if (openId === id) { setOpenId(null); return; }
+    setOpenId(id);
+    if (threads[id]) return;
+    setLoadingId(id);
+    try {
+      const res = await api<{ messages: ThreadMsg[] }>(`/api/admin/consultas/${id}`);
+      setThreads((t) => ({ ...t, [id]: res.messages.filter((m) => m.role !== "SYSTEM") }));
+    } catch {
+      setThreads((t) => ({ ...t, [id]: [] }));
+    } finally {
+      setLoadingId(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -490,22 +516,52 @@ function ConsultasTab({ consultas }: { consultas: ConsultaRow[] }) {
       <div className="space-y-2">
         {rows.map((c) => (
           <div key={c.id} className="card-mystic p-3 text-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-ivory">{c.service}</p>
-                <p className="truncate text-[11px] text-mist">{c.userName ?? "Sin nombre"} · {c.userEmail ?? "invitada/o"}</p>
+            <button type="button" onClick={() => toggleThread(c.id)} className="w-full text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ivory">{c.service}</p>
+                  <p className="truncate text-[11px] text-mist">{c.userName ?? "Sin nombre"} · {c.userEmail ?? "invitada/o"}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] ${c.paid ? "bg-emerald-500/15 text-emerald-300" : "bg-plum/40 text-mist"}`}>
+                    {c.accessMode ? (ACCESS_LABEL[c.accessMode] ?? c.accessMode) : c.status.toLowerCase()}
+                  </span>
+                  <p className="mt-1 text-[10px] text-mist/60">{fmtDate(c.date)}</p>
+                </div>
               </div>
-              <div className="shrink-0 text-right">
-                <span className={`rounded-full px-2 py-0.5 text-[10px] ${c.paid ? "bg-emerald-500/15 text-emerald-300" : "bg-plum/40 text-mist"}`}>
-                  {c.accessMode ? (ACCESS_LABEL[c.accessMode] ?? c.accessMode) : c.status.toLowerCase()}
-                </span>
-                <p className="mt-1 text-[10px] text-mist/60">{fmtDate(c.date)}</p>
-              </div>
-            </div>
-            {c.firstMessage && (
-              <p className="mt-2 line-clamp-3 rounded-lg bg-plum/20 px-3 py-2 text-xs italic text-ivory/85">
-                “{c.firstMessage}”
+              {c.firstMessage && (
+                <p className="mt-2 line-clamp-3 rounded-lg bg-plum/20 px-3 py-2 text-xs italic text-ivory/85">
+                  “{c.firstMessage}”
+                </p>
+              )}
+              <p className="mt-2 text-[10px] text-violet/80">
+                {openId === c.id ? "▾ Cerrar conversación" : "▸ Ver conversación completa"}
               </p>
+            </button>
+
+            {openId === c.id && (
+              <div className="mt-2 space-y-2 border-t border-violet/15 pt-3">
+                {loadingId === c.id && <p className="text-center text-xs text-mist/60">Cargando…</p>}
+                {loadingId !== c.id && (threads[c.id] ?? []).length === 0 && (
+                  <p className="text-center text-xs text-mist/60">No hay mensajes (los sorteos de oráculo no guardan chat).</p>
+                )}
+                {(threads[c.id] ?? []).map((m) => (
+                  <div key={m.id} className={`flex ${m.role === "USER" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                        m.role === "USER"
+                          ? "bg-violet/25 text-ivory"
+                          : "border border-gold/20 bg-plum/20 text-ivory/90"
+                      }`}
+                    >
+                      <p className="mb-1 text-[9px] uppercase tracking-wider opacity-60">
+                        {m.role === "USER" ? (c.userName ?? "Persona") : "Guía"} · {fmtDate(m.createdAt)}
+                      </p>
+                      <p className="whitespace-pre-line">{m.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ))}
