@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "tsx scripts/smoke.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && prisma generate && next build --turbopack"
+    "vercel-build": "prisma generate && next build --turbopack"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
