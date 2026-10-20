@@ -24,9 +24,10 @@ interface Props {
       deckPreference: string;
     } | null;
   };
+  isAdmin?: boolean;
 }
 
-export function PerfilClient({ user }: Props) {
+export function PerfilClient({ user, isAdmin }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -220,6 +221,19 @@ export function PerfilClient({ user }: Props) {
           La eliminación es inmediata y permanente: se borran tu historial, diarios, cartas y créditos.
         </p>
       </section>
+
+      {isAdmin && (
+        <section className="card-mystic space-y-2 p-5">
+          <h2 className="font-display text-lg text-ivory">Administración</h2>
+          <Link
+            href="/admin"
+            className="flex items-center justify-between rounded-xl border border-violet/40 bg-violet/10 px-4 py-3 text-sm text-ivory hover:bg-violet/20"
+          >
+            <span>Panel admin · pagos, servicios y precios</span>
+            <span>→</span>
+          </Link>
+        </section>
+      )}
 
       <section className="card-mystic space-y-2 p-5">
         <h2 className="font-display text-lg text-ivory">Tu suscripción</h2>
