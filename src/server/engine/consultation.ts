@@ -20,6 +20,10 @@ export async function checkAccess(user: User, serviceSlug: string) {
   });
   if (!service || !service.active) throw new QuotaError();
 
+  if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+    return { service, mode: "admin" as const };
+  }
+
   // Gratis por día
   if (service.freeDaily || service.priceArs === 0) {
     const today = new Date();

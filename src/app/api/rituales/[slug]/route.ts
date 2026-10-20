@@ -21,7 +21,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   if (!ritual || !ritual.active) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
   const service = await prisma.service.findUnique({ where: { slug } });
-  let access: "free" | "purchase" | "credits" | "membership" | "none" = "none";
+  let access: "free" | "purchase" | "credits" | "membership" | "admin" | "none" = "none";
   if (service) {
     try {
       const a = await checkAccess(user, slug);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -34,6 +34,20 @@ interface PromoRow {
   active: boolean;
 }
 
+interface PurchaseRow {
+  id: string;
+  date: string;
+  paidAt: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  kind: string;
+  item: string;
+  coupon: string | null;
+  amountArs: number;
+  status: string;
+  mpPaymentId: string | null;
+}
+
 interface PromptRow {
   id: string;
   key: string;
@@ -43,15 +57,16 @@ interface PromptRow {
 }
 
 export function AdminClient({
-  stats, services, promos, prompts,
+  stats, services, promos, prompts, purchases,
 }: {
   stats: Stats;
   services: ServiceRow[];
   promos: PromoRow[];
   prompts: PromptRow[];
+  purchases: PurchaseRow[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"servicios" | "promos" | "creditos" | "prompts">("servicios");
+  const [tab, setTab] = useState<"pagos" | "servicios" | "promos" | "creditos" | "prompts">("pagos");
   const [editing, setEditing] = useState<string | null>(null);
   const [price, setPrice] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -94,9 +109,10 @@ export function AdminClient({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         {(
           [
+            ["pagos", "Pagos"],
             ["servicios", "Servicios"],
             ["promos", "Promos"],
             ["creditos", "Créditos"],
@@ -167,9 +183,159 @@ export function AdminClient({
         </section>
       )}
 
+      {tab === "pagos" && <PagosTab purchases={purchases} />}
       {tab === "promos" && <PromosTab promos={promos} services={services} onDone={() => router.refresh()} />}
       {tab === "creditos" && <CreditosTab onMsg={setMsg} />}
       {tab === "prompts" && <PromptsTab prompts={prompts} onDone={() => router.refresh()} />}
+    </div>
+  );
+}
+
+/* ---------- Pagos ---------- */
+const STATUS_LABEL: Record<string, string> = {
+  APPROVED: "Aprobado", PENDING: "Pendiente", REJECTED: "Rechazado", REFUNDED: "Reembolsado",
+};
+const STATUS_CLASS: Record<string, string> = {
+  APPROVED: "bg-emerald-500/15 text-emerald-300",
+  PENDING: "bg-gold/15 text-gold",
+  REJECTED: "bg-rose/15 text-rose",
+  REFUNDED: "bg-violet/20 text-violet",
+};
+const KIND_LABEL: Record<string, string> = {
+  SERVICE: "Servicio", MEMBERSHIP: "Membresía", CREDITS: "Créditos", GIFT: "Regalo",
+};
+const fmtArs = (n: number) => `$ ${n.toLocaleString("es-AR")}`;
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+function PagosTab({ purchases }: { purchases: PurchaseRow[] }) {
+  const [status, setStatus] = useState("APPROVED");
+  const [kind, setKind] = useState("");
+  const [q, setQ] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const fromT = from ? new Date(`${from}T00:00:00`).getTime() : null;
+    const toT = to ? new Date(`${to}T23:59:59`).getTime() : null;
+    return purchases.filter((p) => {
+      if (status && p.status !== status) return false;
+      if (kind && p.kind !== kind) return false;
+      const t = new Date(p.date).getTime();
+      if (fromT && t < fromT) return false;
+      if (toT && t > toT) return false;
+      if (needle) {
+        const hay = `${p.userName ?? ""} ${p.userEmail ?? ""} ${p.item} ${p.mpPaymentId ?? ""}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [purchases, status, kind, q, from, to]);
+
+  const approved = useMemo(() => rows.filter((p) => p.status === "APPROVED"), [rows]);
+  const total = approved.reduce((s, p) => s + p.amountArs, 0);
+  const buyers = new Set(approved.map((p) => p.userEmail ?? p.id)).size;
+
+  const byItem = useMemo(() => {
+    const m = new Map<string, { count: number; total: number }>();
+    for (const p of approved) {
+      const cur = m.get(p.item) ?? { count: 0, total: 0 };
+      m.set(p.item, { count: cur.count + 1, total: cur.total + p.amountArs });
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [approved]);
+
+  function exportCsv() {
+    const head = ["Fecha", "Usuario", "Email", "Tipo", "Detalle", "Cupón", "Monto ARS", "Estado", "ID Mercado Pago"];
+    const esc = (v: string | number | null) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = rows.map((p) =>
+      [fmtDate(p.date), p.userName, p.userEmail, KIND_LABEL[p.kind] ?? p.kind, p.item, p.coupon, p.amountArs, STATUS_LABEL[p.status] ?? p.status, p.mpPaymentId]
+        .map(esc).join(";")
+    );
+    const blob = new Blob(["\uFEFF" + [head.map(esc).join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `pagos-alma-limpia-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Kpi label="Cobrado (filtro)" value={fmtArs(total)} />
+        <Kpi label="Pagos aprobados" value={approved.length.toLocaleString("es-AR")} />
+        <Kpi label="Compradores" value={buyers.toLocaleString("es-AR")} />
+      </div>
+
+      <div className="card-mystic grid grid-cols-2 gap-2 p-3 sm:grid-cols-5">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nombre, email, servicio…" className="input col-span-2 text-sm" />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className="input text-sm">
+          <option value="">Todos los estados</option>
+          <option value="APPROVED">Aprobados</option>
+          <option value="PENDING">Pendientes</option>
+          <option value="REJECTED">Rechazados</option>
+          <option value="REFUNDED">Reembolsados</option>
+        </select>
+        <select value={kind} onChange={(e) => setKind(e.target.value)} className="input text-sm">
+          <option value="">Todos los tipos</option>
+          <option value="SERVICE">Servicios</option>
+          <option value="MEMBERSHIP">Membresías</option>
+          <option value="CREDITS">Créditos</option>
+        </select>
+        <button onClick={exportCsv} disabled={!rows.length} className="btn-gold py-2 text-xs disabled:opacity-50">
+          Exportar CSV
+        </button>
+        <label className="col-span-1 flex items-center gap-2 text-[11px] text-mist sm:col-span-2">
+          Desde <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input flex-1 py-1.5 text-sm" />
+        </label>
+        <label className="col-span-1 flex items-center gap-2 text-[11px] text-mist sm:col-span-2">
+          Hasta <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input flex-1 py-1.5 text-sm" />
+        </label>
+      </div>
+
+      {byItem.length > 0 && (
+        <div className="card-mystic p-3">
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-mist/70">Cobrado por servicio</p>
+          <div className="space-y-1">
+            {byItem.map(([item, v]) => (
+              <div key={item} className="flex justify-between text-xs">
+                <span className="text-ivory">{item} <span className="text-mist/60">×{v.count}</span></span>
+                <span className="text-gold">{fmtArs(v.total)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {rows.map((p) => (
+          <div key={p.id} className="card-mystic flex items-start gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-ivory">{p.item}</p>
+              <p className="truncate text-[11px] text-mist">
+                {p.userName ?? "Sin nombre"} · {p.userEmail ?? "invitado"}
+              </p>
+              <p className="text-[10px] text-mist/60">
+                {fmtDate(p.date)} · {KIND_LABEL[p.kind] ?? p.kind}
+                {p.coupon && ` · cupón ${p.coupon}`}
+                {p.mpPaymentId && ` · MP #${p.mpPaymentId}`}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="font-medium text-gold">{fmtArs(p.amountArs)}</p>
+              <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${STATUS_CLASS[p.status] ?? "bg-plum/30 text-mist"}`}>
+                {STATUS_LABEL[p.status] ?? p.status}
+              </span>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="py-6 text-center text-xs text-mist/60">No hay pagos con estos filtros.</p>}
+        {purchases.length >= 1000 && (
+          <p className="text-center text-[10px] text-mist/50">Se muestran los últimos 1.000 movimientos.</p>
+        )}
+      </div>
     </div>
   );
 }
