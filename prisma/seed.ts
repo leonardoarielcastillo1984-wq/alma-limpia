@@ -532,7 +532,7 @@ async function main() {
       key: "pricing.defaults",
       value: {
         tarot_personalizado: 15000, carta_astral: 20000, registros_akashicos: 20000,
-        guia_espiritual: 20000, membresia_mensual: 7900,
+        guia_espiritual: 20000, membresia_mensual: 29000,
       },
     },
   });

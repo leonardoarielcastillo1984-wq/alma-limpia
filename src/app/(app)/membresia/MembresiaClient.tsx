@@ -17,17 +17,17 @@ export interface Purchase {
 
 const PLANS = [
   {
-    code: "LUNA" as const, name: "Luna", price: 4900,
+    code: "LUNA" as const, name: "Luna", price: 19000,
     perks: ["Consultas ilimitadas con la guía", "Lecturas simbólicas ilimitadas", "Tu historial siempre disponible"],
     icon: Sparkles,
   },
   {
-    code: "ESTRELLA" as const, name: "Estrella", price: 7900,
+    code: "ESTRELLA" as const, name: "Estrella", price: 29000,
     perks: ["Todo lo de Luna", "Tarot semanal incluido", "Prioridad en las respuestas"],
     icon: Star,
   },
   {
-    code: "COSMOS" as const, name: "Cosmos", price: 12900, popular: true,
+    code: "COSMOS" as const, name: "Cosmos", price: 45000, popular: true,
     perks: ["Todo lo de Estrella", "Carta natal con interpretación", "Sinastría mensual"],
     icon: Crown,
   },
