@@ -7,11 +7,13 @@ import { PayServiceButton } from "../../ritual/[slug]/PayServiceButton";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-const ORACLES: Record<string, { serviceSlug: string; name: string; desc: string }> = {
-  pendulo: { serviceSlug: "pendulo-virtual", name: "Péndulo", desc: "Respuestas sí/no simbólicas" },
-  runas: { serviceSlug: "runas-nordicas", name: "Runas nórdicas", desc: "Tres runas para tu consulta" },
-  iching: { serviceSlug: "i-ching", name: "I Ching", desc: "Un hexagrama para tu pregunta" },
-  akasico: { serviceSlug: "registros-akashicos", name: "Registros akáshicos", desc: "Un fragmento del registro de tu alma" },
+type OracleId = "pendulo" | "runas" | "iching" | "akashico";
+
+const ORACLES: Record<string, { oracle: OracleId; serviceSlug: string; name: string; desc: string }> = {
+  pendulo: { oracle: "pendulo", serviceSlug: "pendulo-virtual", name: "Péndulo", desc: "Respuestas sí/no simbólicas" },
+  runas: { oracle: "runas", serviceSlug: "runas-nordicas", name: "Runas nórdicas", desc: "Tres runas para tu consulta" },
+  iching: { oracle: "iching", serviceSlug: "i-ching", name: "I Ching", desc: "Un hexagrama para tu pregunta" },
+  akasico: { oracle: "akashico", serviceSlug: "registros-akashicos", name: "Registros akáshicos", desc: "Un fragmento del registro de tu alma" },
 };
 
 export default async function OraclePage({ params }: { params: Promise<{ tipo: string }> }) {
@@ -57,5 +59,5 @@ export default async function OraclePage({ params }: { params: Promise<{ tipo: s
     );
   }
 
-  return <OracleClient oracle={tipo as "pendulo" | "runas" | "iching"} name={cfg.name} desc={cfg.desc} />;
+  return <OracleClient oracle={cfg.oracle} name={cfg.name} desc={cfg.desc} />;
 }
