@@ -150,7 +150,7 @@ export function OracleClient({ oracle, name, desc }: { oracle: Oracle; name: str
     <div className="animate-fade-up mx-auto max-w-md">
       <header className="mb-5 flex items-center gap-3 border-b border-violet/15 pb-4">
         <Link
-          href="/explorar/oraculo"
+          href={oracle === "akashico" ? "/explorar/alma" : "/explorar/oraculo"}
           aria-label="Volver"
           className="flex h-9 w-9 items-center justify-center rounded-full text-ivory/80 hover:bg-plum/40"
         >
@@ -238,7 +238,9 @@ export function OracleClient({ oracle, name, desc }: { oracle: Oracle; name: str
                   ? oracle === "pendulo"
                     ? "Tu pregunta de sí o no"
                     : "Contame tu situación"
-                  : "Tu pregunta (opcional)"}
+                  : oracle === "akashico"
+                    ? "¿Qué querés que te muestre tu registro? (opcional)"
+                    : "Tu pregunta (opcional)"}
               </label>
               <textarea
                 value={question}
@@ -250,7 +252,9 @@ export function OracleClient({ oracle, name, desc }: { oracle: Oracle; name: str
                     ? "Algo que se responda con sí o no…"
                     : oracle === "iching"
                       ? "Qué está pasando y qué necesitás saber…"
-                      : "Concentrate en lo que querés preguntar…"
+                      : oracle === "akashico"
+                        ? "Un vínculo, un patrón que se repite, tu propósito…"
+                        : "Concentrate en lo que querés preguntar…"
                 }
                 className="input w-full resize-none"
               />
